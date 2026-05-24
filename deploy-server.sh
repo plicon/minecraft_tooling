@@ -315,3 +315,54 @@ if [[ "$ADDON_COUNT" != "0" && "$ADDON_COUNT" != "null" ]]; then
 else
     info "No addons configured."
 fi
+
+SCREEN_NAME="mc-${SERVER_DIR}"
+
+info "Generating start.sh..."
+cat > "$TARGET_DIR/start.sh" <<STARTEOF
+#!/bin/bash
+SERVER_DIR="$TARGET_DIR"
+SCREEN_NAME="$SCREEN_NAME"
+
+if screen -list | grep -q "\$SCREEN_NAME"; then
+    echo "Server is already running in screen session: \$SCREEN_NAME"
+    exit 0
+fi
+
+cd "\$SERVER_DIR"
+LD_LIBRARY_PATH=. screen -dmS "\$SCREEN_NAME" ./bedrock_server
+echo "Server started in screen session: \$SCREEN_NAME"
+STARTEOF
+chmod +x "$TARGET_DIR/start.sh"
+
+info "Generating stop.sh..."
+cat > "$TARGET_DIR/stop.sh" <<STOPEOF
+#!/bin/bash
+SCREEN_NAME="$SCREEN_NAME"
+
+if ! screen -list | grep -q "\$SCREEN_NAME"; then
+    echo "Server is not running."
+    exit 0
+fi
+
+screen -S "\$SCREEN_NAME" -p 0 -X stuff "stop\$(printf '\r')"
+echo "Stop command sent to \$SCREEN_NAME. Server is shutting down."
+STOPEOF
+chmod +x "$TARGET_DIR/stop.sh"
+
+echo ""
+echo "=============================================="
+info "Server deployed successfully!"
+echo "=============================================="
+echo ""
+echo "  Server name:  $SERVER_NAME"
+echo "  Location:     $TARGET_DIR"
+echo "  Port (IPv4):  $SERVER_PORT"
+echo "  Screen name:  $SCREEN_NAME"
+echo ""
+echo "  Start:  $TARGET_DIR/start.sh"
+echo "  Stop:   $TARGET_DIR/stop.sh"
+echo ""
+echo "  Cron watchdog (restarts if not running):"
+echo "  * * * * * $TARGET_DIR/start.sh > /dev/null 2>&1"
+echo ""
