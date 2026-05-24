@@ -97,6 +97,15 @@ view_distance: 32
 # Options: true, false
 online_mode: true
 
+# --- World Import ------------------------------------------------------------
+
+# Import a .mcworld file as the server's world. The file must be in the
+# addons/ directory. The .mcworld is extracted to worlds/<level_name>/.
+# This replaces any auto-generated world with the imported one.
+# Leave empty ("") or remove this line to start with a fresh world.
+world_file: ""
+#world_file: "oneblock.mcworld"
+
 # --- Addons ------------------------------------------------------------------
 
 # List of addon files to install from the addons/ directory.
@@ -197,6 +206,36 @@ if [[ "$LEVEL_NAME" == "null" || -z "$LEVEL_NAME" ]]; then
 fi
 if [[ "$LEVEL_NAME" == *"/"* || "$LEVEL_NAME" == *".."* ]]; then
     die "level_name must not contain '/' or '..': $LEVEL_NAME"
+fi
+
+WORLD_FILE="$(yq_read '.world_file')"
+if [[ "$WORLD_FILE" != "null" && -n "$WORLD_FILE" ]]; then
+    WORLD_FILE_PATH="$ADDONS_DIR/$WORLD_FILE"
+    if [[ ! -f "$WORLD_FILE_PATH" ]]; then
+        die "World file not found: $WORLD_FILE_PATH"
+    fi
+
+    WORLD_DIR="$TARGET_DIR/worlds/$LEVEL_NAME"
+    mkdir -p "$WORLD_DIR"
+
+    info "Importing world from $WORLD_FILE..."
+    if ! unzip -qo "$WORLD_FILE_PATH" -d "$WORLD_DIR" 2>/dev/null; then
+        die "Failed to extract world file: $WORLD_FILE"
+    fi
+
+    # Some .mcworld files contain a nested directory — move contents up if so
+    nested_leveldat="$(find "$WORLD_DIR" -name "level.dat" -maxdepth 2 | head -1)"
+    if [[ -n "$nested_leveldat" ]]; then
+        nested_dir="$(dirname "$nested_leveldat")"
+        if [[ "$nested_dir" != "$WORLD_DIR" ]]; then
+            mv "$nested_dir"/* "$WORLD_DIR"/ 2>/dev/null || true
+            mv "$nested_dir"/.* "$WORLD_DIR"/ 2>/dev/null || true
+            rmdir "$nested_dir" 2>/dev/null || true
+        fi
+        info "  World imported successfully (level.dat found)."
+    else
+        warn "  No level.dat found in $WORLD_FILE — the world may not load correctly."
+    fi
 fi
 
 ADDON_COUNT="$(yq_read '.addons | length')"

@@ -40,7 +40,22 @@ Generate a fully documented example config:
 
 Edit the file with your settings (server name, port, gamemode, etc.). Every setting is documented with comments explaining what it does and which values are valid.
 
-### 3. Add addons (optional)
+### 3. Import a world (optional)
+
+To use a pre-made world (e.g. a One Block map from CurseForge), place the `.mcworld` file in the `addons/` directory and reference it in your config:
+
+```bash
+cp oneblock.mcworld addons/
+```
+
+```yaml
+level_name: "One Block World"
+world_file: "oneblock.mcworld"
+```
+
+The `.mcworld` is extracted to `worlds/<level_name>/` and replaces any auto-generated world.
+
+### 4. Add addons (optional)
 
 Place your `.mcpack` and `.mcaddon` files in the `addons/` directory:
 
@@ -59,7 +74,7 @@ addons:
 
 The script reads each addon's `manifest.json` to determine the pack type (behavior or resource) and installs it in the correct location automatically.
 
-### 4. Deploy the server
+### 5. Deploy the server
 
 ```bash
 ./deploy-server.sh configs/my-server.yaml
@@ -71,7 +86,7 @@ This will:
 - Install any configured addons
 - Generate `start.sh` and `stop.sh` scripts
 
-### 5. Start the server
+### 6. Start the server
 
 ```bash
 ./servers/my-server/start.sh
@@ -85,13 +100,13 @@ screen -r mc-my-server
 
 To detach from the screen session: press `Ctrl+A` then `D`.
 
-### 6. Stop the server
+### 7. Stop the server
 
 ```bash
 ./servers/my-server/stop.sh
 ```
 
-### 7. Auto-restart with cron (optional)
+### 8. Auto-restart with cron (optional)
 
 The `start.sh` script is safe to call repeatedly -- it exits cleanly if the server is already running. Add a cron entry to restart the server if it crashes:
 

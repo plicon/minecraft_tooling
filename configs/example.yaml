@@ -60,6 +60,15 @@ view_distance: 32
 # Options: true, false
 online_mode: true
 
+# --- World Import ------------------------------------------------------------
+
+# Import a .mcworld file as the server's world. The file must be in the
+# addons/ directory. The .mcworld is extracted to worlds/<level_name>/.
+# This replaces any auto-generated world with the imported one.
+# Leave empty ("") or remove this line to start with a fresh world.
+world_file: ""
+#world_file: "oneblock.mcworld"
+
 # --- Addons ------------------------------------------------------------------
 
 # List of addon files to install from the addons/ directory.
