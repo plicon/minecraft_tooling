@@ -188,3 +188,130 @@ update_property "level-seed"    ".level_seed"
 update_property "allow-cheats"  ".allow_cheats"
 update_property "view-distance" ".view_distance"
 update_property "online-mode"   ".online_mode"
+
+LEVEL_NAME="$(yq_read '.level_name')"
+if [[ "$LEVEL_NAME" == "null" || -z "$LEVEL_NAME" ]]; then
+    LEVEL_NAME="Bedrock level"
+fi
+
+ADDON_COUNT="$(yq_read '.addons | length')"
+BEHAVIOR_PACKS_JSON="[]"
+RESOURCE_PACKS_JSON="[]"
+
+install_mcpack() {
+    local pack_path="$1"
+    local tmp_extract
+    tmp_extract="$(mktemp -d)"
+
+    if ! unzip -qo "$pack_path" -d "$tmp_extract" 2>/dev/null; then
+        warn "Failed to extract: $(basename "$pack_path"). Skipping."
+        rm -rf "$tmp_extract"
+        return 1
+    fi
+
+    local manifest="$tmp_extract/manifest.json"
+    if [[ ! -f "$manifest" ]]; then
+        local nested
+        nested="$(find "$tmp_extract" -name "manifest.json" -maxdepth 2 | head -1)"
+        if [[ -n "$nested" ]]; then
+            manifest="$nested"
+            tmp_extract="$(dirname "$nested")"
+        else
+            warn "No manifest.json found in: $(basename "$pack_path"). Skipping."
+            rm -rf "$tmp_extract"
+            return 1
+        fi
+    fi
+
+    local uuid version_array module_type pack_name
+    uuid="$(yq eval '.header.uuid' "$manifest" 2>/dev/null)"
+    version_array="$(yq eval '.header.version' "$manifest" 2>/dev/null)"
+    module_type="$(yq eval '.modules[0].type' "$manifest" 2>/dev/null)"
+    pack_name="$(yq eval '.header.name' "$manifest" 2>/dev/null)"
+
+    if [[ "$uuid" == "null" || -z "$uuid" ]]; then
+        warn "Invalid manifest in: $(basename "$pack_path"). Skipping."
+        rm -rf "$tmp_extract"
+        return 1
+    fi
+
+    if [[ "$pack_name" == "null" || -z "$pack_name" ]]; then
+        pack_name="$(basename "$pack_path" | sed 's/\.\(mcpack\|mcaddon\)$//')"
+    fi
+
+    local safe_name
+    safe_name="$(echo "$pack_name" | tr ' ' '_' | tr -cd '[:alnum:]_-')"
+
+    local dest_type
+    if [[ "$module_type" == "data" || "$module_type" == "script" ]]; then
+        dest_type="behavior_packs"
+        BEHAVIOR_PACKS_JSON="$(echo "$BEHAVIOR_PACKS_JSON" | yq eval ". + [{\"pack_id\": \"$uuid\", \"version\": $version_array}]")"
+    else
+        dest_type="resource_packs"
+        RESOURCE_PACKS_JSON="$(echo "$RESOURCE_PACKS_JSON" | yq eval ". + [{\"pack_id\": \"$uuid\", \"version\": $version_array}]")"
+    fi
+
+    local dest_dir="$TARGET_DIR/$dest_type/$safe_name"
+    rm -rf "$dest_dir"
+    cp -r "$tmp_extract" "$dest_dir"
+
+    info "  Installed $dest_type pack: $pack_name ($uuid)"
+    rm -rf "$tmp_extract"
+    return 0
+}
+
+if [[ "$ADDON_COUNT" != "0" && "$ADDON_COUNT" != "null" ]]; then
+    info "Installing addons..."
+
+    for i in $(seq 0 $((ADDON_COUNT - 1))); do
+        addon_file="$(yq_read ".addons[$i]")"
+        addon_path="$ADDONS_DIR/$addon_file"
+
+        if [[ ! -f "$addon_path" ]]; then
+            warn "Addon file not found: $addon_path. Skipping."
+            continue
+        fi
+
+        if [[ "$addon_file" == *.mcaddon ]]; then
+            mcaddon_tmp="$(mktemp -d)"
+            if ! unzip -qo "$addon_path" -d "$mcaddon_tmp" 2>/dev/null; then
+                warn "Failed to extract mcaddon: $addon_file. Skipping."
+                rm -rf "$mcaddon_tmp"
+                continue
+            fi
+
+            found_packs=0
+            while IFS= read -r inner_pack; do
+                install_mcpack "$inner_pack" && ((found_packs++)) || true
+            done < <(find "$mcaddon_tmp" -name "*.mcpack" -type f 2>/dev/null)
+
+            if [[ "$found_packs" -eq 0 ]]; then
+                has_manifest="$(find "$mcaddon_tmp" -name "manifest.json" -maxdepth 2 | head -1)"
+                if [[ -n "$has_manifest" ]]; then
+                    install_mcpack "$addon_path" || true
+                else
+                    warn "No packs found in mcaddon: $addon_file"
+                fi
+            fi
+
+            rm -rf "$mcaddon_tmp"
+
+        elif [[ "$addon_file" == *.mcpack ]]; then
+            install_mcpack "$addon_path" || true
+        else
+            warn "Unknown addon format: $addon_file. Supported: .mcpack, .mcaddon"
+        fi
+    done
+
+    WORLD_DIR="$TARGET_DIR/worlds/$LEVEL_NAME"
+    mkdir -p "$WORLD_DIR"
+
+    if [[ "$BEHAVIOR_PACKS_JSON" != "[]" ]]; then
+        echo "$BEHAVIOR_PACKS_JSON" | yq eval -o=json > "$WORLD_DIR/world_behavior_packs.json"
+    fi
+    if [[ "$RESOURCE_PACKS_JSON" != "[]" ]]; then
+        echo "$RESOURCE_PACKS_JSON" | yq eval -o=json > "$WORLD_DIR/world_resource_packs.json"
+    fi
+else
+    info "No addons configured."
+fi
