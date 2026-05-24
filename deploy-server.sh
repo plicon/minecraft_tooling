@@ -154,3 +154,37 @@ info "Deploying server '$SERVER_NAME' to $TARGET_DIR..."
 
 info "Copying template..."
 cp -r "$TEMPLATE_DIR" "$TARGET_DIR"
+
+info "Configuring server.properties..."
+
+PROPERTIES_FILE="$TARGET_DIR/server.properties"
+
+if [[ ! -f "$PROPERTIES_FILE" ]]; then
+    die "server.properties not found in template. Is the template valid?"
+fi
+
+update_property() {
+    local key="$1"
+    local yaml_path="$2"
+    local value
+    value="$(yq_read "$yaml_path")"
+    if [[ "$value" != "null" && -n "$value" ]]; then
+        if grep -q "^${key}=" "$PROPERTIES_FILE"; then
+            sed -i "s|^${key}=.*|${key}=${value}|" "$PROPERTIES_FILE"
+        else
+            echo "${key}=${value}" >> "$PROPERTIES_FILE"
+        fi
+    fi
+}
+
+update_property "server-name"   ".server_name"
+update_property "server-port"   ".server_port"
+update_property "server-portv6" ".server_port_v6"
+update_property "gamemode"      ".gamemode"
+update_property "difficulty"    ".difficulty"
+update_property "max-players"   ".max_players"
+update_property "level-name"    ".level_name"
+update_property "level-seed"    ".level_seed"
+update_property "allow-cheats"  ".allow_cheats"
+update_property "view-distance" ".view_distance"
+update_property "online-mode"   ".online_mode"
