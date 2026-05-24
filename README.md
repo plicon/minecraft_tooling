@@ -12,7 +12,13 @@ Two scripts for managing Minecraft Bedrock Dedicated Server (BDS) instances on U
 
 ### 1. Create the template
 
-Download the BDS from [minecraft.net](https://www.minecraft.net/en-us/download/server/bedrock), accept the terms, and copy the Linux download URL.
+Download the BDS zip from [minecraft.net](https://www.minecraft.net/en-us/download/server/bedrock) and point the script at the local file:
+
+```bash
+./setup-template.sh /path/to/bedrock-server-1.21.62.01.zip
+```
+
+A download URL also works if you have one:
 
 ```bash
 ./setup-template.sh "https://minecraft.azureedge.net/bin-linux/bedrock-server-X.XX.XX.XX.zip"

@@ -5,13 +5,17 @@ BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
 TEMPLATE_DIR="$BASE_DIR/template"
 
 usage() {
-    echo "Usage: $0 [DOWNLOAD_URL]"
+    echo "Usage: $0 <path-to-zip | download-url>"
     echo ""
-    echo "Downloads the official Minecraft Bedrock Dedicated Server and creates"
-    echo "a template directory for deploying new server instances."
+    echo "Creates a template directory from the official Minecraft Bedrock"
+    echo "Dedicated Server for deploying new server instances."
     echo ""
-    echo "If DOWNLOAD_URL is not provided, you will be prompted to enter it."
-    echo "Get the URL from: https://www.minecraft.net/en-us/download/server/bedrock"
+    echo "Accepts either:"
+    echo "  - A local .zip file path (e.g. ./bedrock-server-1.21.62.01.zip)"
+    echo "  - A download URL"
+    echo ""
+    echo "If no argument is provided, you will be prompted to enter a path or URL."
+    echo "Download the server from: https://www.minecraft.net/en-us/download/server/bedrock"
     exit 0
 }
 
@@ -68,19 +72,19 @@ check_dependency "unzip" "sudo apt install unzip"
 check_dependency "screen" "sudo apt install screen"
 install_yq
 
-DOWNLOAD_URL="${1:-}"
+SOURCE="${1:-}"
 
-if [[ -z "$DOWNLOAD_URL" ]]; then
+if [[ -z "$SOURCE" ]]; then
     echo ""
-    echo "No download URL provided."
-    echo "Go to https://www.minecraft.net/en-us/download/server/bedrock"
-    echo "Accept the terms, copy the Linux download URL, and paste it below."
+    echo "No argument provided."
+    echo "Download the server zip from: https://www.minecraft.net/en-us/download/server/bedrock"
+    echo "Then provide the path to the zip file, or paste a download URL."
     echo ""
-    read -rp "Download URL: " DOWNLOAD_URL
+    read -rp "Path or URL: " SOURCE
 fi
 
-if [[ -z "$DOWNLOAD_URL" ]]; then
-    die "No download URL provided."
+if [[ -z "$SOURCE" ]]; then
+    die "No path or URL provided."
 fi
 
 if [[ -d "$TEMPLATE_DIR" ]]; then
@@ -93,17 +97,24 @@ if [[ -d "$TEMPLATE_DIR" ]]; then
     rm -rf "$TEMPLATE_DIR"
 fi
 
-TMP_ZIP="$(mktemp /tmp/bedrock-server-XXXXXX.zip)"
-trap 'rm -f "$TMP_ZIP"' EXIT
-
-info "Downloading Bedrock Dedicated Server..."
-if ! curl -fSL "$DOWNLOAD_URL" -o "$TMP_ZIP"; then
-    die "Download failed. Check the URL and try again."
+if [[ -f "$SOURCE" ]]; then
+    ZIP_FILE="$SOURCE"
+    info "Using local file: $ZIP_FILE"
+else
+    ZIP_FILE="$(mktemp /tmp/bedrock-server-XXXXXX.zip)"
+    trap 'rm -f "$ZIP_FILE"' EXIT
+    info "Downloading Bedrock Dedicated Server..."
+    if ! curl -fSL "$SOURCE" -o "$ZIP_FILE"; then
+        die "Download failed. Check the URL and try again."
+    fi
 fi
 
 info "Extracting to $TEMPLATE_DIR..."
 mkdir -p "$TEMPLATE_DIR"
-unzip -qo "$TMP_ZIP" -d "$TEMPLATE_DIR"
+if ! unzip -qo "$ZIP_FILE" -d "$TEMPLATE_DIR"; then
+    rm -rf "$TEMPLATE_DIR"
+    die "Extraction failed. Is this a valid zip file?"
+fi
 
 mkdir -p "$BASE_DIR/addons"
 mkdir -p "$BASE_DIR/configs"
