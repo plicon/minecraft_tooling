@@ -396,6 +396,14 @@ echo "Stop command sent to \$SCREEN_NAME. Server is shutting down."
 STOPEOF
 chmod +x "$TARGET_DIR/stop.sh"
 
+CRON_ENTRY="* * * * * $TARGET_DIR/start.sh > /dev/null 2>&1"
+if crontab -l 2>/dev/null | grep -qF "$TARGET_DIR/start.sh"; then
+    info "Cron watchdog already exists."
+else
+    (crontab -l 2>/dev/null; echo "$CRON_ENTRY") | crontab -
+    info "Cron watchdog installed."
+fi
+
 echo ""
 echo "=============================================="
 info "Server deployed successfully!"
@@ -408,7 +416,5 @@ echo "  Screen name:  $SCREEN_NAME"
 echo ""
 echo "  Start:  $TARGET_DIR/start.sh"
 echo "  Stop:   $TARGET_DIR/stop.sh"
-echo ""
-echo "  Cron watchdog (restarts if not running):"
-echo "  * * * * * $TARGET_DIR/start.sh > /dev/null 2>&1"
+echo "  Cron:   $CRON_ENTRY"
 echo ""
