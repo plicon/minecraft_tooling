@@ -12,7 +12,7 @@ usage() {
     echo ""
     echo "If DOWNLOAD_URL is not provided, you will be prompted to enter it."
     echo "Get the URL from: https://www.minecraft.net/en-us/download/server/bedrock"
-    exit 1
+    exit 0
 }
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
@@ -46,7 +46,7 @@ install_yq() {
     info "Installing yq..."
     local yq_version="v4.44.1"
     local arch
-    arch="$(dpkg --print-architecture 2>/dev/null || echo "amd64")"
+    arch="$(dpkg --print-architecture 2>/dev/null || { warn "dpkg not found, assuming amd64"; echo "amd64"; })"
     local yq_url="https://github.com/mikefarah/yq/releases/download/${yq_version}/yq_linux_${arch}"
 
     if [[ -w /usr/local/bin ]]; then
