@@ -120,14 +120,36 @@ Add:
 * * * * * /path/to/servers/my-server/start.sh > /dev/null 2>&1
 ```
 
+## Updating Servers
+
+When a new BDS version is released, update all servers in two steps:
+
+```bash
+# 1. Update the template with the new BDS zip
+./setup-template.sh /path/to/new-bedrock-server.zip
+
+# 2. Update all deployed servers
+./update-servers.sh
+```
+
+The update script will, for each server:
+1. Stop the server gracefully
+2. Create a backup in `backups/<server-dir>/<timestamp>/`
+3. Copy new BDS files from the template (preserving worlds, config, and addons)
+4. Restart the server
+
+If a server fails to stop within 30 seconds, it is skipped. If a backup fails, the server is skipped and restarted with the old files.
+
 ## Directory Structure
 
 ```
 .
-├── setup-template.sh          # Creates the BDS template
+├── setup-template.sh          # Creates/updates the BDS template
 ├── deploy-server.sh           # Deploys new servers from the template
+├── update-servers.sh          # Updates all servers to new BDS version
 ├── template/                  # Clean BDS installation (created by setup-template.sh)
-├── addons/                    # Shared .mcpack/.mcaddon files
+├── addons/                    # Shared .mcpack/.mcaddon/.mcworld files
+├── backups/                   # Server backups (created by update-servers.sh)
 ├── configs/                   # Server config files (YAML)
 │   └── example.yaml
 └── servers/                   # Deployed server instances
