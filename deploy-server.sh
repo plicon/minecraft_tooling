@@ -169,8 +169,10 @@ update_property() {
     local value
     value="$(yq_read "$yaml_path")"
     if [[ "$value" != "null" && -n "$value" ]]; then
+        local escaped_value
+        escaped_value="$(printf '%s' "$value" | sed 's/[&|\\]/\\&/g')"
         if grep -q "^${key}=" "$PROPERTIES_FILE"; then
-            sed -i "s|^${key}=.*|${key}=${value}|" "$PROPERTIES_FILE"
+            sed -i "s|^${key}=.*|${key}=${escaped_value}|" "$PROPERTIES_FILE"
         else
             echo "${key}=${value}" >> "$PROPERTIES_FILE"
         fi
@@ -193,6 +195,9 @@ LEVEL_NAME="$(yq_read '.level_name')"
 if [[ "$LEVEL_NAME" == "null" || -z "$LEVEL_NAME" ]]; then
     LEVEL_NAME="Bedrock level"
 fi
+if [[ "$LEVEL_NAME" == *"/"* || "$LEVEL_NAME" == *".."* ]]; then
+    die "level_name must not contain '/' or '..': $LEVEL_NAME"
+fi
 
 ADDON_COUNT="$(yq_read '.addons | length')"
 BEHAVIOR_PACKS_JSON="[]"
@@ -200,12 +205,13 @@ RESOURCE_PACKS_JSON="[]"
 
 install_mcpack() {
     local pack_path="$1"
-    local tmp_extract
-    tmp_extract="$(mktemp -d)"
+    local tmp_root tmp_extract
+    tmp_root="$(mktemp -d)"
+    tmp_extract="$tmp_root"
 
     if ! unzip -qo "$pack_path" -d "$tmp_extract" 2>/dev/null; then
         warn "Failed to extract: $(basename "$pack_path"). Skipping."
-        rm -rf "$tmp_extract"
+        rm -rf "$tmp_root"
         return 1
     fi
 
@@ -218,7 +224,7 @@ install_mcpack() {
             tmp_extract="$(dirname "$nested")"
         else
             warn "No manifest.json found in: $(basename "$pack_path"). Skipping."
-            rm -rf "$tmp_extract"
+            rm -rf "$tmp_root"
             return 1
         fi
     fi
@@ -231,7 +237,7 @@ install_mcpack() {
 
     if [[ "$uuid" == "null" || -z "$uuid" ]]; then
         warn "Invalid manifest in: $(basename "$pack_path"). Skipping."
-        rm -rf "$tmp_extract"
+        rm -rf "$tmp_root"
         return 1
     fi
 
@@ -241,6 +247,7 @@ install_mcpack() {
 
     local safe_name
     safe_name="$(echo "$pack_name" | tr ' ' '_' | tr -cd '[:alnum:]_-')"
+    [[ -z "$safe_name" ]] && safe_name="$uuid"
 
     local dest_type
     if [[ "$module_type" == "data" || "$module_type" == "script" ]]; then
@@ -256,7 +263,7 @@ install_mcpack() {
     cp -r "$tmp_extract" "$dest_dir"
 
     info "  Installed $dest_type pack: $pack_name ($uuid)"
-    rm -rf "$tmp_extract"
+    rm -rf "$tmp_root"
     return 0
 }
 
@@ -282,7 +289,7 @@ if [[ "$ADDON_COUNT" != "0" && "$ADDON_COUNT" != "null" ]]; then
 
             found_packs=0
             while IFS= read -r inner_pack; do
-                install_mcpack "$inner_pack" && ((found_packs++)) || true
+                install_mcpack "$inner_pack" && found_packs=$((found_packs + 1)) || true
             done < <(find "$mcaddon_tmp" -name "*.mcpack" -type f 2>/dev/null)
 
             if [[ "$found_packs" -eq 0 ]]; then
